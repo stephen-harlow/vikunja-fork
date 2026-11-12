@@ -409,9 +409,10 @@ func initDefaultConfig() {
 	ServiceIPExtractionMethod.setDefault("direct")
 	ServiceTrustedProxies.setDefault("")
 
-	// Sentry
-	SentryDsn.setDefault("https://440eedc957d545a795c17bbaf477497c@o1047380.ingest.sentry.io/4504254983634944")
-	SentryFrontendDsn.setDefault("https://85694a2d757547cbbc90cd4b55c5a18d@o1047380.ingest.sentry.io/6024480")
+	// Sentry (error reporting removed: no DSN is baked in, so even if enabled
+	// by mistake there is nothing to report to)
+	SentryDsn.setDefault("")
+	SentryFrontendDsn.setDefault("")
 
 	// Auth
 	AuthLocalEnabled.setDefault(true)
