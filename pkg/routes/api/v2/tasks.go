@@ -276,6 +276,7 @@ func tasksUpdate(ctx context.Context, in *struct {
 	ID     int64  `path:"task"`
 	Format string `query:"format" enum:"html,markdown" doc:"How rich-text fields are exchanged. See the API description."`
 	Body   taskReadOneBody
+	conditional.Params
 }) (*singleBody[models.Task], error) {
 	a, err := authFromCtx(ctx)
 	if err != nil {
@@ -285,6 +286,19 @@ func tasksUpdate(ctx context.Context, in *struct {
 	task.ID = in.ID // URL wins over body
 	if err := convertToHTML(ctx, &task.Description); err != nil {
 		return nil, translateDomainError(err)
+	}
+	// Honour If-Match so a stale update is refused (412) instead of silently
+	// overwriting a concurrent edit. The ETag matches the read endpoint's.
+	if in.Params.HasConditionalParams() {
+		current := &models.Task{ID: in.ID}
+		maxPermission, err := handler.DoReadOne(ctx, current, a)
+		if err != nil {
+			return nil, translateDomainError(err)
+		}
+		etag := strconv.FormatInt(current.Updated.UnixNano(), 10) + "-" + strconv.Itoa(maxPermission)
+		if err := in.Params.PreconditionFailed(etag, current.Updated); err != nil {
+			return nil, err
+		}
 	}
 	if err := handler.DoUpdate(ctx, task, a); err != nil {
 		return nil, translateDomainError(err)
