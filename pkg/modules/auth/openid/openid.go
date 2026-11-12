@@ -68,7 +68,10 @@ type Provider struct {
 	UsernameFallback    bool   `json:"username_fallback"`
 	ForceUserInfo       bool   `json:"force_user_info"`
 	RequireAvailability bool   `json:"-"`
-	ClientSecret        string `json:"-"`
+	// AllowedEmails, when non-empty, restricts OIDC sign-in to exactly these
+	// email addresses (case-insensitive). Empty means everyone is allowed.
+	AllowedEmails []string `json:"allowed_emails"`
+	ClientSecret  string   `json:"-"`
 	// RP-Initiated Logout endpoint, cached at init so logout never fetches.
 	// Exported so it survives the gob keyvalue round-trip (gob skips unexported
 	// fields like openIDProvider); json:"-" keeps it out of /info.
@@ -475,7 +478,29 @@ func getLinkedUser(s *xorm.Session, idToken *oidc.IDToken) (*user.User, bool, er
 	return u, true, nil
 }
 
+// IsEmailAllowed reports whether the provider's allowlist permits the given
+// email. An empty allowlist permits everyone; otherwise the match is
+// case-insensitive on the trimmed address.
+func (p *Provider) IsEmailAllowed(email string) bool {
+	if len(p.AllowedEmails) == 0 {
+		return true
+	}
+	for _, allowed := range p.AllowedEmails {
+		if strings.EqualFold(allowed, strings.TrimSpace(email)) {
+			return true
+		}
+	}
+	return false
+}
+
 func getOrCreateUser(s *xorm.Session, cl *claims, provider *Provider, idToken *oidc.IDToken) (u *user.User, linked bool, err error) {
+
+	if !provider.IsEmailAllowed(cl.Email) {
+		return nil, false, &models.ErrOpenIDBadRequestWithDetails{
+			Message: "This email address is not allowed to sign in",
+			Details: cl.Email,
+		}
+	}
 
 	// set defaults
 	fallbackMatchFound := false

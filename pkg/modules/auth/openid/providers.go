@@ -268,8 +268,50 @@ func parseBoolField(pi map[string]interface{}, key string) (val bool, err error)
 			return false, nil
 		}
 		return strconv.ParseBool(v)
+		default:
+			return false, fmt.Errorf("expected bool, got %T", raw)
+	}
+}
+
+// parseStringListField reads a list-valued config field. It accepts a native
+// array (YAML/JSON), a []string, or a comma-separated string (env vars and the
+// GetConfigValueFromFile path always return strings). Missing or empty values
+// return nil. Entries are trimmed and empty ones dropped.
+func parseStringListField(pi map[string]interface{}, key string) []string {
+	raw, exists := pi[key]
+	if !exists {
+		return nil
+	}
+	appendTrimmed := func(out []string, s string) []string {
+		s = strings.TrimSpace(s)
+		if s != "" {
+			return append(out, s)
+		}
+		return out
+	}
+	switch v := raw.(type) {
+	case []interface{}:
+		out := make([]string, 0, len(v))
+		for _, item := range v {
+			if s, ok := item.(string); ok {
+				out = appendTrimmed(out, s)
+			}
+		}
+		return out
+	case []string:
+		out := make([]string, 0, len(v))
+		for _, s := range v {
+			out = appendTrimmed(out, s)
+		}
+		return out
+	case string:
+		out := []string{}
+		for _, s := range strings.Split(v, ",") {
+			out = appendTrimmed(out, s)
+		}
+		return out
 	default:
-		return false, fmt.Errorf("expected bool, got %T", raw)
+		return nil
 	}
 }
 
@@ -316,6 +358,7 @@ func getProviderFromMap(pi map[string]interface{}, key string) (provider *Provid
 			"usernamefallback",
 			"forceuserinfo",
 			"requireavailability",
+			"allowedemails",
 		},
 		requiredKeys...,
 	)
@@ -371,6 +414,7 @@ func getProviderFromMap(pi map[string]interface{}, key string) (provider *Provid
 	if err != nil {
 		log.Errorf("requireavailability is not a boolean for provider %s: %s", key, err)
 	}
+	allowedEmails := parseStringListField(pi, "allowedemails")
 	logFallbackOptionsDeprecation(key, emailFallback, usernameFallback)
 
 	provider = &Provider{
@@ -385,6 +429,7 @@ func getProviderFromMap(pi map[string]interface{}, key string) (provider *Provid
 		UsernameFallback:    usernameFallback,
 		ForceUserInfo:       forceUserInfo,
 		RequireAvailability: requireAvailability,
+		AllowedEmails:       allowedEmails,
 	}
 
 	cl, is := pi["clientid"].(int)
