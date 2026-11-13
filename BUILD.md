@@ -38,12 +38,17 @@ Everything else is unmodified upstream.
    cd ..
    ```
 
-4. Build the binary:
+4. Build the binary (stamp the fork version so it does not report `dev`):
 
    ```sh
    export PATH=$HOME/.local/go/bin:$PATH GOPATH=$HOME/go GOMODCACHE=$HOME/go/pkg/mod
-   go build -o /tmp/vikunja-build/vikunja .
+   go build -ldflags '-X code.vikunja.io/api/pkg/version.Version=v<NEW-VERSION>-fork' -o /tmp/vikunja-build/vikunja .
    ```
+
+   The version package is `pkg/version` (`code.vikunja.io/api/pkg/version`); the
+   magefile normally stamps it via `git describe` plus `-X main.Tags`. The
+   `-ldflags` above overrides `Version` directly and yields e.g.
+   `Vikunja api version v2.8.0-fork` from `vikunja version`.
 
 5. Deploy (service is a user unit running as `stephen`):
 
